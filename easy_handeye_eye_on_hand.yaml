@@ -1,0 +1,18 @@
+parameters:
+  eye_on_hand: true
+  freehand_robot_movement: true
+  move_group: manipulator
+  move_group_namespace: /
+  namespace: /easy_handeye_eye_on_hand/
+  robot_base_frame: base_link
+  robot_effector_frame: gripper_link
+  tracking_base_frame: camera_base
+  tracking_marker_frame: tag
+transformation:
+  qw: 0.9993612738339966
+  qx: -0.0036439230868355013
+  qy: 0.025952344165811714
+  qz: -0.024294896948295668
+  x: -0.06329297997867576
+  y: 0.053943714066309434
+  z: 0.09464226369221553

@@ -1,0 +1,12 @@
+[submodule "src/Azure_Kinect_ROS_Driver"]
+	path = src/Azure_Kinect_ROS_Driver
+	url = https://github.com/microsoft/Azure_Kinect_ROS_Driver.git
+[submodule "src/apriltag_ros"]
+	path = src/apriltag_ros
+	url = https://github.com/AprilRobotics/apriltag_ros.git
+[submodule "src/easy_handeye"]
+	path = src/easy_handeye
+	url = https://github.com/IFL-CAMP/easy_handeye.git
+[submodule "src/octomap_mapping"]
+	path = src/octomap_mapping
+	url = https://github.com/OctoMap/octomap_mapping.git

@@ -1,0 +1,25 @@
+<launch>
+
+    <arg name="move_base_include" default="$(find wave)/launch/include/move_base.launch.xml" />
+    <arg name="scan_topic" default="base_scan" />
+    <arg name="map_topic" default="map" />
+    <arg name="cmd_vel_topic" default="cmd_vel" />
+    <arg name="odom_topic" default="odom" />
+    
+    <include file="$(find fetch_moveit_config)/launch/move_group.launch"/>
+<!-- 
+    <include file="$(arg move_base_include)" >
+        <arg name="name" value="fetch" />
+        <                    arg name="map_topic" value="$(arg map_topic)" />
+        <arg name="cmd_vel_topic" value="$(arg cmd_vel_topic)" />
+        <arg name="odom_topic" value="$(arg odom_topic)" />
+    </include> -->
+    
+    <!-- <node name="wave_node" pkg="wave" type="wave_demo.py" output="screen"/> -->
+
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find wave)/rviz/wave.rviz"/>
+ 
+
+
+
+</launch>

@@ -1,0 +1,33 @@
+<launch>
+  <!-- (start your robot's MoveIt! and Kinect Camera) -->
+  <include file="$(find fetch_moveit_config)/launch/move_group.launch"/>
+  <include file="$(find azure_kinect_ros_driver)/launch/driver.launch"/>
+  
+  <!-- (Publish the calibration) -->
+  <include file="$(find easy_handeye)/launch/publish.launch">
+    <arg name="eye_on_hand" value="true" />
+    <arg name="calibration_file" value="/home/fetch/scan/scan_ws/easy_handeye_eye_on_hand.yaml" />
+  </include>
+
+  <!-- (start octomap-server) -->
+  <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+		<param name="resolution" value="0.02" />
+		
+		<!-- fixed map frame (set to 'map' if SLAM or localization running!) -->
+		<param name="frame_id" type="string" value="base_link" />
+
+    <param name="sensor_model/max_range" value="3.0" />
+
+    <param name = "height_map" value = "false" />
+    <param name = "colored_map" value = "true" />
+
+    <!-- When set to true, on every map change all topics and visualizations will be created. -->
+    <param name = "latch" value = "true" /> 
+		
+		<!-- data source to integrate (PointCloud2) -->
+		<remap from="cloud_in" to="/points2" />
+	
+	</node>
+
+
+</launch>
