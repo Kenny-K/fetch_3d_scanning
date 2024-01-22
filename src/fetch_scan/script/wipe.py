@@ -72,7 +72,7 @@ def check_left_line(msg):
     left_scan.angle_increment = msg.angle_increment
     left_scan.time_increment = msg.time_increment
     left_scan.scan_time = msg.scan_time
-    left_scan.range_min = msgetect line.range_min
+    left_scan.range_min = msg.range_min
     left_scan.range_max = msg.range_max
     
     for i in range(len(ranges)):

@@ -1,68 +1,94 @@
 import rospy
 import numpy as np
+import tf
+import tf.transformations as tf_trans
+import tf2_ros
+import ros_numpy
+import tf2_geometry_msgs
+from sensor_msgs.msg import PointCloud2
+from scipy.spatial.transform import Rotation as R
 from sensor_msgs import point_cloud2
-from sensor_msgs.msg import Image, PointCloud2
-from octomap_msgs.msg import Octomap
-from octomap_msgs.srv import GetOctomap, GetOctomapRequest, GetOctomapResponse
-import numpy
-from cv_bridge import CvBridge
-import cv2
 
+def crop_point_cloud(point_cloud, min_bound=np.array([0.3,-0.5,0.2]), max_bound=np.array([1.3,0.5,1.2]), return_mask=False):
+    """
+    Crops a point cloud to the points that fall within a given 3D bounding box.
 
-def callback(data):
-    global temp_time
-    if rospy.Time.now() - temp_time > rospy.Duration(3.0):
-        bridge = CvBridge()
-        cv_image = bridge.imgmsg_to_cv2(data, desired_encoding='passthrough')
-        print(type(cv_image))
-        cv2.imshow("test", cv_image)
-        cv2.waitKey(3)
-        temp_time = rospy.Time.now()
+    :param point_cloud: numpy array of shape (N, 3) representing the point cloud
+    :param min_bound: numpy array of shape (3,) representing the minimum corner of the bounding box
+    :param max_bound: numpy array of shape (3,) representing the maximum corner of the bounding box
+    :return: numpy array of the cropped point cloud
+    """
+    # Check if points are within the bounding box
+    points = point_cloud[:, 0:3]
+    in_bounds = np.all((points >= min_bound) & (points <= max_bound), axis=1)
+
+    # Extract points within the bounding box
+    cropped_cloud = point_cloud[in_bounds]
+
+    return cropped_cloud
+
+def cloud_callback(cloud_msg):
+    
+    # save RGBXYZ: hx
+    pc = ros_numpy.numpify(cloud_msg)
+    pc = ros_numpy.point_cloud2.split_rgb_field(pc)
+    # xyz
+    points = np.zeros((pc.shape[0], 3), dtype=np.float32)
+    points[:, 0] = pc['x']
+    points[:, 1] = pc['y']
+    points[:, 2] = pc['z']
+    
+    # rgb
+    rgb = np.zeros((pc.shape[0], 3))
+    rgb[:,0] = pc['r']
+    rgb[:,1] = pc['g']
+    rgb[:,2] = pc['b']
+    # print(rgb[0:10])
+    
+    rgbpoints = np.concatenate((points, rgb), axis=1)
+    print("rgbpoints", rgbpoints.shape)
+    
+    try:
+        print(cloud_msg.header.frame_id)
+        # Lookup the transformation from camera frame to base frame
+        trans = tf_buffer.lookup_transform('base_link', cloud_msg.header.frame_id, rospy.Time(0))
         
-def pt_callback(msg):
-    
-    gen = point_cloud2.read_points(msg, field_names=('x','y','z'),
-                                   skip_nans=True)
-    points = np.asarray(list(gen))
-    print(points.shape)
-    print(points.mean(axis=0), points.min(axis=0), points.max(axis=0))
+        rotation = R.from_quat([
+            trans.transform.rotation.x,
+            trans.transform.rotation.y,
+            trans.transform.rotation.z,
+            trans.transform.rotation.w
+        ]).as_dcm()
         
-def octo_callback(msg):
+        translation = np.array([
+            trans.transform.translation.x,
+            trans.transform.translation.y,
+            trans.transform.translation.z
+        ])
+        
+        points = rgbpoints[:, 0:3].copy()
+        # print(points.shape)
+        points = np.dot(points, rotation.T) + translation
+        
+        rgbpoints[:, 0:3] = points
+        np.savetxt("/home/fetch/scan/scan_ws/all.txt", rgbpoints)
+        
+        rgbpoints = crop_point_cloud(rgbpoints)
+        print("rgbpoints after crop", rgbpoints.shape)
+        
+        
+        np.savetxt("/home/fetch/scan/scan_ws/crop.txt", rgbpoints)
+        print("save ***********8")
+        
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+        rospy.logerr("TF error: %s", e)
 
-    map = msg.deserialize_numpy(msg.data[0], np)
-    print(map)
-    
+rospy.init_node('pointcloud_transform_node')
+rospy.Rate(0.1)
 
-     
-def listener():
-    global temp_time, oct_cloud
-    oct_cloud = None
-    temp_time = rospy.Time.now()
-    
-    rospy.init_node('node_name')
-    rospy.Rate(1.0)
-    
-    # rospy.Subscriber("/rgb/image_raw", Image, callback)
-    rospy.wait_for_message("/octomap_point_cloud_centers", PointCloud2)
-    print("Get msg")
-    rospy.Subscriber("/octomap_point_cloud_centers", PointCloud2, pt_callback)
-    
-    
-    print("After subscribe")
+tf_buffer = tf2_ros.Buffer()
+listener = tf2_ros.TransformListener(tf_buffer)
 
-    # rospy.Subscriber("/octomap_binary", Octomap, octo_callback)
-    
-    # spin() simply keeps python from exiting until this node is stopped
-    rospy.spin()
-    
-if __name__ == "__main__":
+cloud_sub = rospy.Subscriber('/points2', PointCloud2, cloud_callback)
 
-    listener()
-    
-    # rospy.init_node('node_name')
-    
-    # rospy.wait_for_service('/octomap_binary')
-    # map_fetcher = rospy.ServiceProxy('/octomap_binary', GetOctomap)
-    
-    # map = map_fetcher()
-    # print(map)
+rospy.spin()

@@ -3,3 +3,5 @@ devel/
 
 .catkin_workspace
 .vscode
+
+*.txt
