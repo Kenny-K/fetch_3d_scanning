@@ -204,6 +204,7 @@ def main(args):
     group.set_max_velocity_scaling_factor(0.1)
     
     group.set_end_effector_link("gripper_link")
+    group.set_planning_time(10)
     
     # move to start pose
     init_pose = Pose()
@@ -249,15 +250,15 @@ def main(args):
     for name in planning_scene.getKnownCollisionObjects():
         planning_scene.removeCollisionObject(name, True)
     rospy.loginfo("Waiting for Planning Scene to clean up ...")
-    rospy.sleep(8)
+    rospy.sleep(2)
     assert len(planning_scene.getKnownCollisionObjects()) == 0
-    for i, cube_center in enumerate(table_cube_center):
-        planning_scene.addCube("table_cube_{}".format(i), args['vox_res'], cube_center[0], cube_center[1], cube_center[2])
-    rospy.loginfo("Waiting for Planning Scene to add collision ...")
-    rospy.sleep(8)
-    planning_scene.waitForSync(8.0) # wait for adding collision
-    rospy.loginfo("Adding {}/{} cube blocks into the scene".format(
-        len(planning_scene.getKnownCollisionObjects()), table_cube_center.shape[0]))
+    # for i, cube_center in enumerate(table_cube_center):
+    #     planning_scene.addCube("table_cube_{}".format(i), args['vox_res'], cube_center[0], cube_center[1], cube_center[2])
+    # rospy.loginfo("Waiting for Planning Scene to add collision ...")
+    # rospy.sleep(8)
+    # planning_scene.waitForSync(8.0) # wait for adding collision
+    # rospy.loginfo("Adding {}/{} cube blocks into the scene".format(
+    #     len(planning_scene.getKnownCollisionObjects()), table_cube_center.shape[0]))
     
     
     # build init voxel
@@ -268,7 +269,7 @@ def main(args):
     rospy.loginfo("Build the initial voxel cells")
     
     # save init scan
-    save_scan = True
+    # save_scan = True
     rospy.wait_for_message("/points2", PointCloud2)
     
     # save init octomap
@@ -284,100 +285,47 @@ def main(args):
     cnt = 0
     complete_flag = False
     success_cnt = 0
-    while True:
-        if complete_flag:
-            print("Success!")
-            break
-        if success_cnt > 10:
-            break
-        while True:
-            # select the farthest point (occupied)
-            voxel_not_none_index = np.where(voxels[:, :, :, 6]!=-1.)
+    
+    # try motion planning
+    max_feat = np.array([0.338, -0.270, 0.880, 0, -1, 0])
+    max_position, max_normal = max_feat[:3], max_feat[3:6]
+    roll, pitch, yaw = direction_vector_to_euler_angles(max_normal)     #TODO
+
+    
+    max_q = tf_trans.quaternion_from_euler(roll, pitch, yaw)
             
-            if len(voxel_not_none_index[0]) == 0:
-                complete_flag = True
-                print("Success!")
-                break
-            
-            voxel_not_none_index_array = np.concatenate((np.expand_dims(voxel_not_none_index[0], axis=1), np.expand_dims(voxel_not_none_index[1], axis=1), np.expand_dims(voxel_not_none_index[2], axis=1)), 1)
-            # print("voxel_not_none_index_array", voxel_not_none_index_array.shape) # [n, 3] occpied points voxel index
-            
-            voxel_not_none = voxels[voxel_not_none_index]
-            print("voxel_not_none", voxel_not_none.shape)
-            max_id = np.argmax(voxel_not_none[:,6])
-            
-            max_id_voxel = voxel_not_none_index_array[max_id] # occupied voxels with max distance [3]
-            # print("max_id_voxel", max_id_voxel)
-            
-            max_feat = voxel_not_none[max_id]
-            max_center, max_normal = max_feat[:3], max_feat[3:6]
-            roll, pitch, yaw = direction_vector_to_euler_angles(-max_normal)     #TODO
-            max_position = max_center + 0.2 * max_normal / np.linalg.norm(max_normal)
-            
-            print("max_center, max_position, max_normal", max_center, max_position, max_normal)
-            
-            
-            # select the farthest point
-            # max_id = np.unravel_index(np.argmax(voxels[:,:,:,6]), voxels.shape[:-1])
-            # max_feat = voxels[max_id[0], max_id[1], max_id[2], :]
-            # max_center, max_normal = max_feat[:3], max_feat[3:6]
-            
-            
-            # roll, pitch, yaw = direction_vector_to_euler_angles(-max_normal)
-            # max_position = max_center + 0.2 * max_normal / np.linalg.norm(max_normal)
-            
-            # print("max_center, max_position", max_center, max_position)
-            
-            max_q = tf_trans.quaternion_from_euler(roll, pitch, yaw)
-            
-            target_pose = Pose()
-            target_pose.position.x = max_position[0]
-            target_pose.position.y = max_position[1]
-            target_pose.position.z = max_position[2]
-            target_pose.orientation.x = max_q[0]
-            target_pose.orientation.y = max_q[1]
-            target_pose.orientation.z = max_q[2]
-            target_pose.orientation.w = max_q[3]
-            group.set_pose_target(target_pose)
-            plan = group.plan()
-            
-            if len(plan.joint_trajectory.points) > 0: 
-                rospy.loginfo("Find next scan.")
-                print(target_pose)
-                group.execute(plan, wait=True)
-                group.stop()
-                group.clear_pose_targets()
-                
-                # save init scan
-                save_scan = True
-                rospy.wait_for_message("/points2", PointCloud2)
-                success_cnt += 1
-                
-                # mark completed voxel as -1
-                voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]] = 0
-                voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2], 6] = -1.
-                
-                break
-                
-            else:
-                rospy.loginfo("Find voxel {} unreachable. Mark its distance as -1.".format(max_center.tolist()))
-                # voxels[max_id[0], max_id[1], max_id[2], 6] = -1
-                
-                # revise for not none voxel
-                # new the occupied voxels with max distance
-                # print("max_id", max_id)
-                # print(voxel_not_none[max_id])
-                # print(voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]])
-                voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]] = 0
-                voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2], 6] = -1.
-                # print(voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]])
-                # print("reset unreachable voxel", voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]])
-            
-            if cnt > 75: break
-            cnt += 1
+    target_pose = Pose()
+    target_pose.position.x = max_position[0]
+    target_pose.position.y = max_position[1]
+    target_pose.position.z = max_position[2]
+    target_pose.orientation.x = max_q[0]
+    target_pose.orientation.y = max_q[1]
+    target_pose.orientation.z = max_q[2]
+    target_pose.orientation.w = max_q[3]
+    group.set_pose_target(target_pose)
+    plan = group.plan()
+    
+    if len(plan.joint_trajectory.points) > 0: 
+        rospy.loginfo("Find next scan.")
+        print(target_pose)
+        group.execute(plan, wait=True)
+        group.stop()
+        group.clear_pose_targets()
+        
+        # save init scan
+        # save_scan = True
+        rospy.wait_for_message("/points2", PointCloud2)
+        
+    else:
+        rospy.loginfo("Find voxel {} unreachable. Mark its distance as -1.".format(max_position.tolist()))
+    print("roll", roll)
+    print("pitch", pitch)
+    print("yaw", yaw)
+
+    
     
     # save the scan
-    save_scan = True
+    # save_scan = True
     rospy.sleep(1.0)    
     
     # # Set the orientation target
@@ -398,7 +346,7 @@ def main(args):
 if __name__ == '__main__':
     args_dict = {
         # 'roi_bbox':[0.3, -1.0, 0.0, 2.3, 1.0, 2.0],
-        'roi_bbox':[0.25, -0.5, 0.1, 1.25, 0.5, 1.1],
+        'roi_bbox':[0.15, -0.5, 0.1, 1.15, 0.5, 1.1],
         'vox_res': 0.05,
         'ros_rate': 2.0,
         'cam_dist': 0.2,
