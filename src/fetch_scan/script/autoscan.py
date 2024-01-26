@@ -354,9 +354,40 @@ def main(args):
                 success_cnt += 1
                 
                 # mark completed voxel as -1
-                voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]] = 0
-                voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2], 6] = -1.
-                
+                # voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]] = 0
+                # voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2], 6] = -1.
+
+                max_x_bound = np.minimum(max_id_voxel[0] + 2, 199)
+                max_y_bound = np.minimum(max_id_voxel[1] + 2, 199)
+                max_z_bound = np.minimum(max_id_voxel[2] + 2, 199)
+
+                min_x_bound = np.minimum(max_id_voxel[0] - 2, 0)
+                min_y_bound = np.minimum(max_id_voxel[1] - 2, 0)
+                min_z_bound = np.minimum(max_id_voxel[2] - 2, 0)
+
+                voxels[min_x_bound:max_x_bound+1, min_y_bound:max_y_bound+1, min_z_bound:max_z_bound+1] = 0
+                voxels[min_x_bound:max_x_bound+1, min_y_bound:max_y_bound+1, min_z_bound:max_z_bound+1, 6] = -1.
+
+
+                # mask the NNs also as -1
+                # range x, y, z translation
+                # resolution: [200, 200, 200]
+                # resolution = 199
+                # trans = [
+                #     [-2, 2], 
+                #     [-2, 2],
+                #     [-2, 2]
+                # ]
+
+                # for x_i in range(trans[0][0], trans[0][1]):
+                #     for y_i in range(trans[1][0], trans[1][1]):
+                #         for z_i in range(trans[2][0], trans[2][1]):
+                #             trans_index = [x_i, y_i, z_i]
+                #             max_id_voxel += trans_index
+                #             if not ((max_id_voxel > resolution).any() or (max_id_voxel < 0).any()):
+                #                 voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2]] = 0
+                #                 voxels[max_id_voxel[0], max_id_voxel[1], max_id_voxel[2], 6] = -1.
+                                
                 break
                 
             else:
